@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QAbstractButton
-from PyQt5.QtGui import QIcon, QPainter, QPixmap
+from PyQt5.QtGui import QIcon, QPainter, QPixmap, QPaintEvent
 from PyQt5.QtCore import QSize
 SIZE = [30, 120]
 
@@ -8,16 +8,14 @@ SIZE = [30, 120]
 class NoteButton(QAbstractButton):
     def __init__(self):
         super().__init__()
-        self.setIcon(QIcon(":/icons/note.png"))
+        #self.setIcon(QIcon(":/icons/note.png"))
         self.pixmap = QPixmap("source_code/icons/note.png")
         # self.setDown(True)
-        print("inicialized!")
-
-    def sizeHint(self):
-        return self.pixmap.size()
+        print("initialized!")
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.drawPixmap(event.rect(), self.pixmap)
-        print("Painted!")
 
+    def sizeHint(self):
+        return self.pixmap.size()

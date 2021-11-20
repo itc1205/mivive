@@ -1,6 +1,7 @@
 import sys
-from source_code.QtNoteClass import NoteButton
-from PyQt5.Qt import QMainWindow, QApplication, QThread, QObject, pyqtSignal, QFileDialog, QWidget, QGridLayout, QColor
+from source_code.classes.QtNoteClass import NoteButton
+import fluidsynth
+from PyQt5.Qt import *
 
 
 class Example(QWidget):
@@ -9,17 +10,27 @@ class Example(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.setAutoFillBackground(True)
-        p = self.palette()
-        p.setColor(self.backgroundRole(), QColor(255, 255, 255))
-        self.setPalette(p)
+        self.fs = fluidsynth.Synth()
+        self.fs.start()
+        sfid = self.fs.sfload("example.sf2")
+        self.fs.program_select(0, sfid, 0, 0)
         self.setGeometry(300, 300, 425, 500)
         self.setWindowTitle('test_example')
         self.btn = NoteButton()
-        self.btn.resize(self.btn.sizeHint())
-        self.btn.move(30, 30)
-        self.btn.resize(self.btn.sizeHint())
+        self.layout = QHBoxLayout(self)
 
+
+        self.layout.addWidget(self.btn)
+        self.btn.pressed.connect(self.pressed)
+        self.btn.released.connect(self.released)
+
+    def pressed(self, i=0):
+        print(f'pressed {i}')
+        self.fs.noteon(0, 50, 127)
+
+    def released(self, i=0):
+        print(f'unpressed {i}')
+        self.fs.noteoff(0, 50)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

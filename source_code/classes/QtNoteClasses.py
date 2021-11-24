@@ -8,8 +8,6 @@ class NoteButton(QAbstractButton):
     def __init__(self, path):
         super().__init__()
         self.note_on_pixmap = QPixmap(path)
-        # self.note_off_pixmap = QPixmap(path_2)
-        print("initialized!")
 
     def paintEvent(self, event):
         painter = QPainter(self)

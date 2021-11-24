@@ -5,16 +5,15 @@ from PyQt5.QtCore import QSize
 
 # Класс для отжимаемых кнопок
 class NoteButton(QAbstractButton):
-    def __init__(self):
+    def __init__(self, path):
         super().__init__()
-        # self.setIcon(QIcon(":/icons/note.png"))
-        self.pixmap = QPixmap("source_code/icons/note.png")
-        # self.setDown(True)
+        self.note_on_pixmap = QPixmap(path)
+        # self.note_off_pixmap = QPixmap(path_2)
         print("initialized!")
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.drawPixmap(event.rect(), self.pixmap)
+        painter.drawPixmap(event.rect(), self.note_on_pixmap)
 
     def sizeHint(self):
-        return self.pixmap.size()
+        return self.note_on_pixmap.size()

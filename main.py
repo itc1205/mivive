@@ -172,12 +172,13 @@ class Example(QWidget, Ui_Sample_synth):
         self.fs.noteon(0, i, 127)
 
     def load_db(self):
+        pass
 
     def startup_load_fonts(self):
-
+        pass
 
     def load_font_from_db(self):
-
+        pass
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

@@ -4,10 +4,9 @@ import fluidsynth
 from PyQt5.Qt import *
 from untitled import Ui_Sample_synth
 from source_code.functions.db_funcs import *
-import sqlite3
+import numpy
 import time
 import pyaudio
-
 
 NOTE_BUTTON_IMG1 = "source_code/icons/on.png"
 NOTE_BUTTON_IMG2 = "source_code/icons/off.png"
@@ -15,32 +14,45 @@ WIDTH = 2
 CHANNELS = 2
 RATE = 44100
 CHANNEL = 0
+BUFFER_LATENCY = 0.001
+pa = pyaudio.PyAudio()
+strm = pa.open(
+    format=pyaudio.paInt16,
+    channels=CHANNELS,
+    rate=RATE,
+    output=True)
 
 fs = fluidsynth.Synth()
-fs.start()
 
-class Player(QObject):
+class SoundThread(QObject):
     finished = pyqtSignal()
-    def __init__(self, fs, pa):
+
+    def __init__(self, fs, stream):
         super().__init__()
         self.fs = fs
-        self.pa = pa
+        self.stream = stream
 
     def run(self):
         while True:
-            pass
+            s = []
+            s = numpy.append(s, fs.get_samples(int(44100 * 0.1)))
+            samps = (fluidsynth.raw_audio_string(s))
+            # time.sleep(0.0001)
+            self.stream.write(samps)
 
 
 class Example(QWidget, Ui_Sample_synth):
-    def __init__(self, pa, fs_synth, img_path1, img_path2, channel):
+    def __init__(self, stream, fs_synth, img_path1, img_path2, channel, buffer_latency):
         super().__init__()
         check_db_exists()
-        self.pa = pa
+        self.stream = stream
         self.fs = fs_synth
+        self.sound_thread_start()
         self.img_path = img_path1
         self.img_path2 = img_path2
         self.channel = channel
         self.octaves = {}
+        self.buffer_latency = buffer_latency
         for i in range(9):
             self.octaves[i] = [7 * i, 7 * i + 1, 7 * i + 2, 7 * i + 3, 7 * i + 4, 7 * i + 5, 7 * i + 6]
         print(self.octaves)
@@ -93,6 +105,13 @@ class Example(QWidget, Ui_Sample_synth):
 
         for key in self.keys:
             self.horizontalLayout.addWidget(key)
+
+    def sound_thread_start(self):
+        self.thread = QThread()
+        self.worker = SoundThread(self.fs, self.stream)
+        self.worker.moveToThread(self.thread)
+        self.thread.started.connect(self.worker.run)
+        self.thread.start()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_D and not event.isAutoRepeat():
@@ -202,6 +221,6 @@ class Example(QWidget, Ui_Sample_synth):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = Example(None, fs, NOTE_BUTTON_IMG1, NOTE_BUTTON_IMG2, CHANNEL)
+    ex = Example(strm, fs, NOTE_BUTTON_IMG1, NOTE_BUTTON_IMG2, CHANNEL, BUFFER_LATENCY)
     ex.show()
     sys.exit(app.exec_())

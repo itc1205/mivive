@@ -3,11 +3,14 @@ from source_code.classes.QtNoteClasses import NoteButton
 import fluidsynth
 from PyQt5.Qt import *
 from untitled import Ui_Sample_synth
+from source_code.functions.db_funcs import *
 import sqlite3
 import time
 import pyaudio
 
-NOTE_BUTTON_IMG = "source_code/icons/note_on.png"
+
+NOTE_BUTTON_IMG1 = "source_code/icons/on.png"
+NOTE_BUTTON_IMG2 = "source_code/icons/off.png"
 WIDTH = 2
 CHANNELS = 2
 RATE = 44100
@@ -18,8 +21,8 @@ fs.start()
 
 class Player(QObject):
     finished = pyqtSignal()
-
     def __init__(self, fs, pa):
+        super().__init__()
         self.fs = fs
         self.pa = pa
 
@@ -29,31 +32,32 @@ class Player(QObject):
 
 
 class Example(QWidget, Ui_Sample_synth):
-    def __init__(self, pa, fs_synth, img_path, channel):
+    def __init__(self, pa, fs_synth, img_path1, img_path2, channel):
         super().__init__()
+        check_db_exists()
         self.pa = pa
         self.fs = fs_synth
-        self.img_path = img_path
+        self.img_path = img_path1
+        self.img_path2 = img_path2
         self.channel = channel
-        sfid = self.fs.sfload("example.sf2")
-        self.fs.program_select(0, sfid, 0, 0)
         self.octaves = {}
         for i in range(9):
             self.octaves[i] = [7 * i, 7 * i + 1, 7 * i + 2, 7 * i + 3, 7 * i + 4, 7 * i + 5, 7 * i + 6]
         print(self.octaves)
-        self.cur_octave = 4
+        self.cur_octave = 6
         self.initUI()
+        self.load_db()
 
     def initUI(self):
         super().setupUi(self)
 
-        self.key1 = NoteButton(self.img_path)
-        self.key2 = NoteButton(self.img_path)
-        self.key3 = NoteButton(self.img_path)
-        self.key4 = NoteButton(self.img_path)
-        self.key5 = NoteButton(self.img_path)
-        self.key6 = NoteButton(self.img_path)
-        self.key7 = NoteButton(self.img_path)
+        self.key1 = NoteButton(self.img_path, self.img_path2)
+        self.key2 = NoteButton(self.img_path, self.img_path2)
+        self.key3 = NoteButton(self.img_path, self.img_path2)
+        self.key4 = NoteButton(self.img_path, self.img_path2)
+        self.key5 = NoteButton(self.img_path, self.img_path2)
+        self.key6 = NoteButton(self.img_path, self.img_path2)
+        self.key7 = NoteButton(self.img_path, self.img_path2)
 
         self.keys = [
             self.key1, self.key2, self.key3, self.key4, self.key5, self.key6, self.key7
@@ -82,6 +86,10 @@ class Example(QWidget, Ui_Sample_synth):
         self.sustain_dial.sliderMoved.connect(self.sustain_change)
         self.chorus_dial.sliderMoved.connect(self.chorus_change)
         self.volume_dial.sliderMoved.connect(self.volume_change)
+
+        self.add_to_db.clicked.connect(self.add_font_to_db)
+        self.delete_from_db.clicked.connect(self.del_font_from_db)
+        self.fonts_list.itemDoubleClicked.connect(self.set_font)
 
         for key in self.keys:
             self.horizontalLayout.addWidget(key)
@@ -121,27 +129,27 @@ class Example(QWidget, Ui_Sample_synth):
             self.released(self.octaves.get(self.cur_octave)[0])
 
         if event.key() == Qt.Key_F and not event.isAutoRepeat():
-            self.key1.setDown(False)
+            self.key2.setDown(False)
             self.released(self.octaves.get(self.cur_octave)[1])
 
         if event.key() == Qt.Key_G and not event.isAutoRepeat():
-            self.key1.setDown(False)
+            self.key3.setDown(False)
             self.released(self.octaves.get(self.cur_octave)[2])
 
         if event.key() == Qt.Key_H and not event.isAutoRepeat():
-            self.key1.setDown(False)
+            self.key4.setDown(False)
             self.released(self.octaves.get(self.cur_octave)[3])
 
         if event.key() == Qt.Key_J and not event.isAutoRepeat():
-            self.key1.setDown(False)
+            self.key5.setDown(False)
             self.released(self.octaves.get(self.cur_octave)[4])
 
         if event.key() == Qt.Key_K and not event.isAutoRepeat():
-            self.key1.setDown(False)
+            self.key6.setDown(False)
             self.released(self.octaves.get(self.cur_octave)[5])
 
         if event.key() == Qt.Key_L and not event.isAutoRepeat():
-            self.key1.setDown(False)
+            self.key7.setDown(False)
             self.released(self.octaves.get(self.cur_octave)[6])
 
     def reverb_change(self):
@@ -166,22 +174,34 @@ class Example(QWidget, Ui_Sample_synth):
         self.fs.cc(self.channel, 11)
 
     def released(self, i):
-        self.fs.noteoff(0, i)
+        self.fs.noteoff(self.channel, i)
 
     def pressed(self, i):
-        self.fs.noteon(0, i, 127)
+        self.fs.noteon(self.channel, i, 127)
 
     def load_db(self):
-        pass
+        self.fonts_list.clear()
+        self.fonts_dict = get_items_from_fonts_db()
+        self.fonts_list.addItems(self.fonts_dict.keys())
 
-    def startup_load_fonts(self):
-        pass
+    def set_font(self):
+        sfid = self.fs.sfload(self.fonts_dict[self.fonts_list.currentItem().text()])
+        self.fs.program_select(self.channel, sfid, 0, 0)
 
-    def load_font_from_db(self):
-        pass
+    def add_font_to_db(self):
+        path = QFileDialog.getOpenFileName(
+            self, 'Выбрать музыкальный шрифт', '',
+            'Soundfont2 (*.sf2);;Все файлы (*)')[0]
+        write_into_database(path)
+        self.load_db()
+
+    def del_font_from_db(self):
+        delete_from_db(self.fonts_dict[self.fonts_list.currentItem().text()])
+        self.load_db()
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = Example(None, fs, NOTE_BUTTON_IMG, CHANNEL)
+    ex = Example(None, fs, NOTE_BUTTON_IMG1, NOTE_BUTTON_IMG2, CHANNEL)
     ex.show()
     sys.exit(app.exec_())

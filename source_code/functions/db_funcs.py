@@ -7,7 +7,7 @@ def check_db_exists():
         os.mkdir("fonts")
 
     if not os.path.exists("fonts/music_fonts_db.sqlite"):
-        with open("fonts/music_fonts_db.sqlite", "w") as f:
+        with open("fonts/music_fonts_db.sqlite", "w"):
             pass
 
         con = sqlite3.connect("fonts/music_fonts_db.sqlite")

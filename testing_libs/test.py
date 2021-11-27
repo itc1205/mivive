@@ -1,58 +1,132 @@
+import wave
+import struct
+import sys
+import numpy as np
+from math import sqrt
+import matplotlib
 
-import pyaudio
-import time
-import numpy
-import keyboard
-import fluidsynth
+matplotlib.use('Agg')
+from matplotlib import pylab
+import matplotlib.pyplot as plt
 
-fs = fluidsynth.Synth()
-sfid = fs.sfload("example.sf2")
-fs.program_select(0, sfid, 0, 41)
+filename = sys.argv[1]
 
-keys = {'1': 48, '2': 49, '3': 50, '4': 51, '5': 52, '6': 53, '7': 54, '8': 55, '9': 56, '0': 57, '-': 58, '=': 59,
-        'q': 60, 'w': 61, 'e': 62, 'r': 63, 't': 64, 'y': 65, 'u': 66, 'i': 67, 'o': 68, 'p': 69, '[': 70, ']': 71,
-        'a': 72, 's': 73, 'd': 74, 'f': 75, 'g': 76, 'h': 77, 'j': 78, 'k': 79, 'l': 80, ';': 81, "'": 82, 'enter': 83}
-pressed_keys = {key: False for key in keys.keys()}
+if __name__ == '__main__':
+    # Open the wave file and get info
+    wave_file = wave.open(filename, 'r')
+    data_size = wave_file.getnframes()
+    sample_rate = wave_file.getframerate()
+    print
+    "Sample rate: %s" % sample_rate
+    sample_width = wave_file.getsampwidth()
+    duration = data_size / float(sample_rate)
+
+    # Read in sample data
+    sound_data = wave_file.readframes(data_size)
+
+    # Close the file, as we don't need it any more
+    wave_file.close()
+
+    # Unpack the binary data into an array
+    unpack_fmt = '%dh' % (data_size)
+    sound_data = struct.unpack(unpack_fmt, sound_data)
+
+    # Process many samples
+    fouriers_per_second = 24  # Frames per second
+    fourier_spread = 1.0 / fouriers_per_second
+    fourier_width = fourier_spread
+    fourier_width_index = fourier_width * float(sample_rate)
+
+    if len(sys.argv) < 3:
+        length_to_process = int(duration) - 1
+    else:
+        length_to_process = float(sys.argv[2])
+
+    print
+    "Fourier width: %s" % str(fourier_width)
+
+    total_transforms = int(round(length_to_process * fouriers_per_second))
+    fourier_spacing = round(fourier_spread * float(sample_rate))
+
+    print
+    "Duration: %s" % duration
+    print
+    "For Fourier width of " + str(fourier_width) + " need " + str(fourier_width_index) + " samples each FFT"
+    print
+    "Doing " + str(fouriers_per_second) + " Fouriers per second"
+    print
+    "Total " + str(total_transforms * fourier_spread)
+    print
+    "Spacing: " + str(fourier_spacing)
+    print
+    "Total transforms " + str(total_transforms)
+
+    lastpoint = int(round(length_to_process * float(sample_rate) + fourier_width_index)) - 1
+
+    sample_size = fourier_width_index
+    freq = sample_rate / sample_size * np.arange(sample_size)
+
+    x_axis = range(0, 12)
 
 
-def hook(key):
-    if key.event_type == "down":
-        if key.name in keys:
-            if not pressed_keys[key.name]:
-                fs.noteon(0, keys[key.name], 127)
-                pressed_keys[key.name] = True
-
-    if key.event_type == "up":
-        if key.name in keys:
-            fs.noteoff(0, keys[key.name])
-            pressed_keys[key.name] = False
+    def getBandWidth():
+        return (2.0 / sample_size) * (sample_rate / 2.0)
 
 
-keyboard.hook(hook)
-keyboard.wait()
-WIDTH = 2
-CHANNELS = 2
-RATE = 44100
+    def freqToIndex(f):
+        # If f (frequency is lower than the bandwidth of spectrum[0]
+        if f < getBandWidth() / 2:
+            return 0
+        if f > (sample_rate / 2) - (getBandWidth() / 2):
+            return sample_size - 1
+        fraction = float(f) / float(sample_rate)
+        index = round(sample_size * fraction)
+        return index
 
-p = pyaudio.PyAudio()
 
-def callback(in_data, frame_count, time_info, status):
-    s = numpy.append(s, fl.get_samples(44100 * 1))
-    return (in_data, pyaudio.paContinue)
+    fft_averages = []
 
-stream = p.open(format=p.get_format_from_width(WIDTH),
-                channels=CHANNELS,
-                rate=RATE,
-                input=True,
-                output=True,
-                stream_callback=callback)
 
-stream.start_stream()
+    def average_fft_bands(fft_array):
+        num_bands = 12  # The number of frequency bands (12 = 1 octave)
+        del fft_averages[:]
+        for band in range(0, num_bands):
+            avg = 0.0
 
-while stream.is_active():
-    time.sleep(1)
+            if band == 0:
+                lowFreq = int(0)
+            else:
+                lowFreq = int(int(sample_rate / 2) / float(2 ** (num_bands - band)))
+            hiFreq = int((sample_rate / 2) / float(2 ** ((num_bands - 1) - band)))
+            lowBound = int(freqToIndex(lowFreq))
+            hiBound = int(freqToIndex(hiFreq))
+            for j in range(lowBound, hiBound):
+                avg += fft_array[j]
 
-stream.stop_stream()
-stream.close()
+            avg /= (hiBound - lowBound + 1)
+            fft_averages.append(avg)
 
-p.terminate()
+
+    for offset in range(0, total_transforms):
+        start = int(offset * sample_size)
+        end = int((offset * sample_size) + sample_size - 1)
+
+        print
+        "Processing sample %i of %i (%d seconds)" % (offset + 1, total_transforms, end / float(sample_rate))
+        sample_range = sound_data[start:end]
+        ## FFT the data
+        fft_data = abs(np.fft.fft(sample_range))
+        # Normalise the data a second time, to make numbers sensible
+        fft_data *= ((2 ** .5) / sample_size)
+        plt.ylim(0, 1000)
+        average_fft_bands(fft_data)
+        y_axis = fft_averages
+        """Stuff for bar graph"""
+        width = 0.35
+        p1 = plt.bar(x_axis, y_axis, width, color='r')
+        """End bar graph stuff"""
+        filename = str('frame_%05d' % offset) + '.png'
+        plt.savefig(filename, dpi=100)
+        plt.close()
+    print
+    "DONE!"
